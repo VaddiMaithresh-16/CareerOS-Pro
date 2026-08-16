@@ -26,6 +26,7 @@ cp .env.example .env
 
 # Start the servers
 # Terminal 1 — Backend
+cd backend
 python run.py
 # API at: http://localhost:8000
 # Docs at:  http://localhost:8000/docs
