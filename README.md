@@ -210,10 +210,12 @@ pytest -v
 
 ### Docker Deployment
 
-Consider containerizing with Docker Compose for production:
+CareerOS-Pro can be containerized for production using Docker Compose. The
+Dockerfile at the project root builds a non-root containerized backend with
+Granian. Use the following `docker-compose.yml` (no explicit version tag —
+compose v2+ handles defaults automatically) to get started:
 
 ```yaml
-version: '3.8'
 services:
   backend:
     build: ./backend
@@ -240,6 +242,59 @@ services:
     image: qdrant/qdrant:latest
     ports: ["6333:6333"]
 ```
+
+#### Deploy on macOS, Windows, or Linux
+
+Docker Desktop is available for all three platforms. After installing Docker
+Desktop, follow these steps:
+
+1. **Open a terminal** (PowerShell on Windows, Terminal on macOS/Linux)
+2. **Build and start the stack:**
+   ```bash
+   docker compose up --build -d
+   ```
+   - The `--build` flag rebuilds images if the Dockerfile or compose file
+     changed.
+   - The `-d` flag runs the containers in detached (background) mode.
+3. **Verify the services are running:**
+   ```bash
+   docker compose ps
+   ```
+   - Backend API should be reachable at `http://localhost:8000`
+   - Frontend should be reachable at `http://localhost:5173`
+   - MySQL port 3306 is forwarded internally; use `127.0.0.1` with your
+     local MySQL client if port-mapped.
+   - Qdrant dashboard should be available at `http://localhost:6333`
+4. **View logs for a specific service:**
+   ```bash
+   docker compose logs -f backend
+   ```
+5. **Stop the stack:**
+   ```bash
+   docker compose down
+   ```
+   - This stops and removes containers, networks, and volumes created by `up`.
+
+#### Customizing for Production
+
+- **Environment variables:** Copy `.env.example` to `.env` and set
+  `APP_ENV=production`, `MYSQL_ROOT_PASSWORD`, `FIRECRAWL_API_KEY`, etc.
+- **Persistent volumes:** Add volume mounts under each service in
+  `docker-compose.yml` to persist MySQL data and Qdrant data across container
+  restarts.
+- **Reverse proxy:** For external access, place a Traefik or Nginx reverse
+  proxy in front of the containers and terminate TLS.
+- **Resource limits:** Add `deploy.resources.limits` to the compose file to
+  cap CPU/memory per service.
+
+See the [Dockerfile](Dockerfile) for the backend container configuration and
+available environment variables.
+
+**Ready to transform your job search?** Clone the repo, add your API keys, and
+let CareerOS-Pro do the hard work while you focus on what matters—your next
+career move.
+
+*Last updated: 2026-08-17*
 
 <hr>
 
