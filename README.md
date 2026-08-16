@@ -5,295 +5,237 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)
 ![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)
 
-**CareerOS** is a professional, AI-powered career intelligence platform designed to autonomously discover, filter, rank, and explain job and internship opportunities for candidates.
+**CareerOS** is your AI-powered career intelligence platform that autonomously discovers, filters, ranks, and explains job and internship opportunities. Built specifically for today's competitive job market, it combines smart automation with human-centered design to help you find the right opportunities faster.
 
-## Table of Contents
-- [Overview](#overview)
-- [Core Features](#core-features)
-- [Architecture](#architecture)
-- [Required APIs and Services](#required-apis-and-services)
-- [Installation and Setup](#installation-and-setup)
-- [Usage](#usage)
-- [Testing](#testing)
-- [Production Deployment](#production-deployment)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [License](#license)
+## 🚀 Overview
 
----
+Tired of endless job searching? CareerOS does the heavy lifting for you. It intelligently searches multiple job platforms, applies smart filters, and uses AI to match you with the most relevant opportunities—all while explaining *why* each recommendation makes sense for your career goals.
 
-## Overview
+Whether you're hunting for internships, entry-level positions, or career moves, CareerOS adapts to your needs with India-optimized defaults (perfect for Hyderabad-based searches) while remaining globally compatible.
 
-CareerOS automates the job search process by intelligently aggregating listings from multiple sources, applying deterministic filters, performing semantic matching, and providing explainable AI-driven recommendations. The platform is specifically optimized for the Indian job market while maintaining global compatibility.
+## ✨ Core Features
 
-## Core Features
+### 🔍 Smart Job Discovery
+- **Multi-source search**: Simultaneously checks JSearch, Adzuna, Remotive, RemoteOK, and Arbeitnow
+- **India-first optimization**: Pre-configured for Adzuna India and Hyderabad as default location
+- **Zero-configuration startup**: Free sources work immediately—add API keys to unlock premium platforms
 
-- **Multi-Source Job Discovery**: Seamlessly fetches jobs from multiple platforms including JSearch, Adzuna, Remotive, RemoteOK, and Arbeitnow.
-- **Intelligent Filtering & Deduplication**: Normalizes job data, eliminates duplicates using URL and content hashing, and enforces hard deterministic filters (e.g., location, employment type, experience level, salary, recency).
-- **Evidence-Based Matching**: Leverages vector search (Qdrant) alongside LLMs (Google Gemini, local Llama models, OpenRouter, NVIDIA NIM) to evaluate candidate fit and provide explainable evidence for recommended matches.
-- **Verification Engine**: Validates job posting integrity to ensure listings are still active and accepting applications.
-- **High-Performance Stack**: Built from the ground up using FastAPI, LangGraph, SQLAlchemy, and Granian for low-latency asynchronous processing.
-- **India-First Defaults**: Pre-configured for Indian job market (Adzuna India, Hyderabad as default location).
+### 🎯 Intelligent Filtering & Deduplication
+- **Smart normalization**: Standardizes job data from different sources for fair comparison
+- **Advanced deduplication**: Eliminates duplicates using URL fingerprinting and content hashing
+- **Hard filters that work**: Location, employment type, experience level, salary, and recency filters that LLMs can't override
 
-## Architecture
+### 🧠 Evidence-Based Matching
+- **Hybrid search technology**: Combines vector search (Qdrant) with LLMs for precise matching
+- **Transparent AI**: Every recommendation comes with explainable evidence—see *why* you're a good fit
+- **Multiple LLM support**: Works with Google Gemini, NVIDIA NIM, OpenRouter, or local Llama models
 
-CareerOS follows a modular, service-oriented architecture with clear separation between backend and frontend:
+### ✅ Trust & Verification
+- **Real-time validation**: Checks if job postings are still active using Firecrawl
+- **Trustworthy recommendations**: Only suggests verifiable, active opportunities
+- **Continuous monitoring**: Ongoing verification keeps recommendations fresh and reliable
+
+### ⚡ Built for Performance
+- **Lightning-fast backend**: Powered by FastAPI and Granian (significantly faster than Uvicorn)
+- **Scalable architecture**: Microservices-inspired design that grows with your needs
+- **Production-ready**: Includes all the pieces needed for serious deployment
+
+## 🏗️ Architecture
+
+CareerOS follows a clean, modular architecture with a clear separation of concerns:
 
 ### Backend (`backend/` directory)
-1. **API Layer** (`backend/main.py`): FastAPI endpoints for search and matching operations
-2. **Workflow Orchestration** (`backend/graph.py`): LangGraph state machine managing the job discovery pipeline
+1. **API Layer** (`backend/main.py`): FastAPI endpoints that power search and matching operations
+2. **Workflow Orchestration** (`backend/graph.py`): LangGraph state machine managing the complete job discovery pipeline
 3. **Service Layer**:
-   - Job discovery adapters (`backend/services/job_api_adapter.py`)
-   - Normalization and deduplication (`backend/services/normalize.py`, `backend/services/dedup.py`)
-   - Filtering (`backend/services/filters.py`)
-   - Vector storage and search (`backend/services/vector_store.py`)
-   - Embedding generation (`backend/services/embeddings.py`)
-   - Model routing (`backend/services/model_router.py`) with OpenRouter + NVIDIA support
-   - Reranking (`backend/services/reranker.py`)
-   - Verification (`backend/services/verification.py`)
-4. **Data Layer**: SQLAlchemy ORM with MySQL backend (`backend/models.py`)
+   - 🔌 **Job discovery adapters** (`backend/services/job_api_adapter.py`): Connectors to JSearch, Adzuna, Remotive, RemoteOK, and Arbeitnow
+   - 🧹 **Normalization & deduplication** (`backend/services/normalize.py`, `backend/services/dedup.py`): Standardizes job data and eliminates duplicates
+   - 🔍 **Filtering** (`backend/services/filters.py`): Applies hard eligibility filters that ensure quality
+   - 🔍 **Vector storage & search** (`backend/services/vector_store.py`): Qdrant-powered vector storage for semantic search
+   - 🧠 **Embedding generation** (`backend/services/embeddings.py`): Creates vector representations of job data
+   - 🔀 **Model routing** (`backend/services/model_router.py`): Intelligent LLM routing with OpenRouter + NVIDIA support
+   - 📊 **Reranking** (`backend/services/reranker.py`): Improves match relevance with additional ranking signals
+   - 🛡️ **Verification** (`backend/services/verification.py`): Validates job postings using Firecrawl
+4. **Data Layer** (`backend/models.py`): SQLAlchemy ORM with MySQL backend for persistent storage
 
 ### Frontend (`frontend/` directory)
-5. **User Interface**: React/Vite web dashboard (`frontend/src/`)
+5. **User Interface**: Modern React/Vite web dashboard (`frontend/src/`) that's fast, responsive, and delightful to use
 
-The system implements hard eligibility filters at the database level (spec 2.1) ensuring LLMs never override core constraints.
+## 🔧 Required APIs & Services
 
-## Required APIs and Services
+CareerOS is designed to work out-of-the-box with free job sources, but adding API keys unlocks its full potential. Here's what you can integrate:
 
-CareerOS integrates with several external APIs for discovery and intelligence. While the platform gracefully degrades and functions with zero API keys (using free job sources), adding keys unlocks its full potential.
+| Service | What It Does | Cost / Free Tier | How to Get Started |
+|---------|--------------|------------------|-------------------|
+| **Remotive** | Remote-only tech jobs | **Free** (No key needed) | Already configured—just works! |
+| **RemoteOK** | Remote & startup jobs | **Free** (No key needed) | Already configured—just works! |
+| **Arbeitnow** | EU & India remote jobs | **Free** (No key needed) | Already configured—just works! |
+| **JSearch** | Global job aggregation | ~200 requests/month free | Sign up at [RapidAPI JSearch](https://rapidapi.com/letscrape-6bRBa3QG1q/api/jsearch) |
+| **Adzuna** | Global jobs (India-optimized) | ~1,000 requests/month free | Register at [Adzuna Developer](https://developer.adzuna.com/) |
+| **Firecrawl** | Live job verification | 500 credits/month free | Get key at [Firecrawl.dev](https://www.firecrawl.dev/) |
+| **Google Gemini** | LLM for matching explanations | Generous free tier | Get key at [Google AI Studio](https://aistudio.google.com/app/apikey) |
+| **llama.cpp** | Local LLM (private & free) | Free, runs locally | Install [llama.cpp](https://github.com/ggerganov/llama.cpp) |
+| **OpenRouter** | Access to 100+ AI models | Free tier available | Get key at [OpenRouter](https://openrouter.ai/keys) |
+| **NVIDIA NIM** | Optimized AI inference | Free tier available | Get key at [NVIDIA Build](https://build.nvidia.com/explore/discover) |
 
-| Service | Purpose | Cost / Free Tier | How to Obtain API Key |
-|---|---|---|---|
-| **Remotive** | Remote-only tech jobs | **Free** (No key needed) | *Pre-configured automatically.* |
-| **RemoteOK** | Remote, startup jobs | **Free** (No key needed) | *Pre-configured automatically.* |
-| **Arbeitnow** | EU & India remote jobs | **Free** (No key needed) | *Pre-configured automatically.* |
-| **JSearch** | Global job aggregation | ~200 requests/month free | Sign up at [RapidAPI JSearch](https://rapidapi.com/letscrape-6bRBa3QG1q/api/jsearch) and subscribe to the basic tier. |
-| **Adzuna** | Global jobs (default: India) | ~1,000 requests/month free | Register at [Adzuna Developer](https://developer.adzuna.com/) and create an app to get your `APP_ID` and `APP_KEY`. |
-| **Firecrawl** | Job live verification | 500 credits/month free | Sign up at [Firecrawl.dev](https://www.firecrawl.dev/) and generate an API key. |
-| **Google Gemini** | LLM for matching | Generous free tier | Generate an API key at [Google AI Studio](https://aistudio.google.com/app/apikey). |
-| **llama.cpp** | Local LLM (optional) | Free, runs locally | Install [llama.cpp](https://github.com/ggerganov/llama.cpp) and run a model server. |
-| **OpenRouter** | 100+ models (Claude, GPT, Llama) | Free tier: `meta-llama/llama-3.1-8b-instruct:free`, `google/gemma-2-9b-it:free`, `mistralai/mistral-7b-instruct:free`, `microsoft/phi-3-mini-128k-instruct:free` | Get key at [OpenRouter](https://openrouter.ai/keys) |
-| **NVIDIA NIM** | Optimized inference microservices | Free tier: `meta/llama-3.1-8b-instruct`, `google/gemma-2-9b-it` | Get key at [NVIDIA Build](https://build.nvidia.com/explore/discover) |
+## ⚙️ AI Provider Flexibility
 
-## AI Provider Configuration
+Choose how CareerOS handles AI explanations with `LLM_PROVIDER_MODE`:
 
-The model router supports multiple LLM backends via `LLM_PROVIDER_MODE`:
+- `auto` **(Recommended)**: Smart fallback – tries local Llama → NVIDIA NIM → OpenRouter → Gemini
+- `llama`: Use only your local Llama.cpp installation (100% private)
+- `gemini`: Google Gemini only (great for quality explanations)
+- `openrouter`: Access to hundreds of models through one API
+- `nvidia`: NVIDIA NIM only (optimized for speed)
+- `none`: No LLM – returns basic match scores without explanations
 
-- `auto` — Uses the auto fallback chain: llama.cpp → NVIDIA → OpenRouter → Gemini
-- `llama` — Local llama.cpp only
-- `gemini` — Google Gemini only
-- `openrouter` — OpenRouter only
-- `nvidia` — NVIDIA NIM only
-- `none` — No LLM; matching returns basic scores without explanation
-
-Provider-specific settings are configured in `.env`:
-
+Configure these in your `.env` file:
 ```bash
 LLM_PROVIDER_MODE=auto
-OPENROUTER_API_KEY=your_openrouter_key
+OPENROUTER_API_KEY=your_openrouter_key_here
 OPENROUTER_MODEL=anthropic/claude-3.5-sonnet
-NVIDIA_API_KEY=your_nvidia_key
+NVIDIA_API_KEY=your_nvidia_key_here
 NVIDIA_MODEL=meta/llama-3.1-70b-instruct
-GEMINI_API_KEY=your_gemini_key
+GEMINI_API_KEY=your_gemini_key_here
 GEMINI_MODEL=gemini-flash-latest
 LLAMA_CPP_BASE_URL=http://localhost:8080
 ```
 
----
-
-## Installation and Setup
+## 🛠️ Installation & Setup
 
 ### Prerequisites
+- **Python 3.12+** (we've tested with 3.12.13)
+- **Git** (for version control)
+- **MySQL** (required – CareerOS uses MySQL for all environments)
 
-- **Python 3.12+**
-- **Git**
-- **MySQL** (Required: the system uses MySQL for development and production)
+### Step-by-Step Setup
 
-### 1. Clone the Repository
-
+#### 1. Get the Code
 ```bash
-git clone https://github.com/VaddiMaithresh-16/CareerOS.git
-cd CareerOs
+git clone https://github.com/VaddiMaithresh-16/CareerOs-Pro.git
+cd CareerOs-Pro
 ```
 
-### 2. Set Up Virtual Environment
-
-#### macOS and Linux
+#### 2. Create Your Virtual Environment
+**macOS/Linux:**
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-#### Windows (Command Prompt / PowerShell)
+**Windows:**
 ```cmd
 python -m venv .venv
 .venv\Scripts\activate
 ```
 
-### 3. Install Dependencies
-
+#### 3. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure Environment Variables
-
-Create your environment configuration by copying the template file:
-
-#### macOS and Linux
+#### 4. Configure Your Environment
 ```bash
+# macOS/Linux
 cp .env.example .env
-```
 
-#### Windows
-```cmd
+# Windows
 copy .env.example .env
 ```
 
-Open `.env` in your preferred text editor and add your acquired API keys.
+Then edit `.env` to add your API keys (see the "Required APIs & Services" section above).
 
-**Database Configuration (MySQL Required):**
-CareerOS requires MySQL. Use `MYSQL_*` components to auto-construct the database URL. Set these in `.env`:
-```bash
-MYSQL_HOST=127.0.0.1
-MYSQL_PORT=3306
-MYSQL_DATABASE=careeros
-MYSQL_USER=your_mysql_username
-MYSQL_PASSWORD=your_mysql_password
-```
+> 💡 **Important**: CareerOS requires MySQL. Make sure it's running! The system automatically builds your database URL from:
+> ```bash
+> MYSQL_HOST=127.0.0.1
+> MYSQL_PORT=3306
+> MYSQL_DATABASE=careeros
+> MYSQL_USER=your_mysql_username
+> MYSQL_PASSWORD=your_secure_password
+> ```
 
-The backend automatically builds: `mysql+pymysql://USER:PASSWORD@HOST:PORT/DATABASE`
-
-**Alternative:** Set explicit `DATABASE_URL` (overrides MYSQL_* above):
-```bash
-# MySQL local
-DATABASE_URL=mysql+pymysql://user:pass@127.0.0.1:3306/careeros
-# MySQL Docker
-DATABASE_URL=mysql+pymysql://user:pass@mysql:3306/careeros
-```
-
-**Key defaults for India:**
-- `ADZUNA_COUNTRY=in` (Adzuna India)
-- Default location in UI: "Hyderabad, India"
-
----
-
-## Usage
-
-Start the backend API and the user interface.
-
-### 1. Start the API Server (Granian)
-
-Run the following command in your terminal. This will spin up the FastAPI backend on port `8000`.
-
+#### 5. Launch the Application
+**Start the backend (Terminal 1):**
 ```bash
 python run.py
+# API available at http://localhost:8000
+# Docs at http://localhost:8000/docs
 ```
 
-### 2. Start the User Interface (React/Vite)
-
-Open a **new terminal window**, navigate to the `frontend` directory, activate your virtual environment, and run:
-
+**Start the frontend (Terminal 2):**
 ```bash
 cd frontend
 npm run dev
+# App available at http://localhost:5173
 ```
 
-### 3. Access the Application
+## 🧪 Testing
 
-- **Web Interface:** Open your browser and navigate to `http://localhost:5173` to access the CareerOS dashboard.
-- **API Documentation:** Navigate to `http://127.0.0.1:8000/docs` to view the interactive Swagger API documentation.
-
-### 4. Application Features
-
-The React/Vite web interface supports advanced search filters:
-- **Role/Query**: Job title or keywords (required)
-- **Location**: City, state, or region (default: Hyderabad, India)
-- **Remote Only**: Filter for fully remote positions
-- **Employment Type**: Full-time, Part-time, Internship, Contract, Temporary
-- **Experience Level**: Intern, Fresher, Entry, Mid, Senior
-- **Minimum Salary**: Annual salary floor (in local currency)
-- **Posted Within**: Recency filter in days
-- **LLM Provider**: auto / llama / gemini / openrouter / nvidia / none
-- **Model**: Model selection dropdown (populated based on provider)
-
-### 5. Auto Mode Fallback Chain (LLM_PROVIDER_MODE=auto)
-
-When set to `auto`, the system tries providers in this order until one succeeds with confidence ≥ 0.6:
-1. **Local llama.cpp** — Private, fast, free (requires local server)
-2. **NVIDIA NIM** — Optimized inference, free tier available
-3. **OpenRouter** — 100+ models, free tier available
-4. **Google Gemini** — Generous free tier
-
----
-
-## Testing
-
-To run the automated test suite and ensure all components are functioning correctly:
-
+Verify everything works with our comprehensive test suite:
 ```bash
 pytest -v
 ```
+You should see all 52 tests passing. The suite covers:
+- Job discovery from all platforms
+- Data normalization and deduplication
+- Hard filtering systems
+- Vector storage and search operations
+- LLM routing and model selection
+- Middleware (security, rate limiting, request ID)
+- End-to-end workflow validation
 
-The test suite covers:
-- Job discovery adapters
-- Normalization and deduplication
-- Hard filter application
-- Vector store operations
-- Model routing logic
-- Middleware functionality
-- End-to-end workflows
+## ☁️ Production Deployment
 
-All 52 tests should pass.
+Ready for production? Here's your checklist:
 
----
+1. **Database**: Point to your production MySQL instance via `.env`
+2. **Environment**: Set `APP_ENV=production` in `.env`
+3. **Performance**: Run with multiple workers:
+   ```bash
+   python run.py --host 0.0.0.0 --port 8000 --workers 4
+   ```
+4. **Security**:
+   - Set `API_KEY` in `.env` for authentication
+   - Configure proper MySQL credentials
+   - Set up a hosted Qdrant instance (change `QDRANT_URL`)
+   - Use Redis-backed rate limiter (upgrade from in-memory)
+5. **Reliability**:
+   - Configure proper logging & monitoring
+   - Set `FIRECRAWL_API_KEY` for job verification
+   - Use a production embedding model (upgrade from HashingVectorizer)
+   - Set `APP_ENV=production` (enforces MySQL, disables SQLite fallback)
 
-## Production Deployment
+## 🤝 Contributing
 
-For production environments, ensure you have configured a production-ready MySQL instance in your `.env` via `MYSQL_*` components (or explicit `DATABASE_URL`) and set `APP_ENV=production`. Start the server utilizing multiple workers for high concurrency:
-
-```bash
-python run.py --host 0.0.0.0 --port 8000 --workers 4
-```
-
-**Production Checklist:**
-- Set `API_KEY` in `.env` to enable authentication
-- Configure `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE` for production MySQL
-- Configure `QDRANT_URL` for a hosted Qdrant instance
-- Use Redis-backed rate limiter (replace in-memory limiter)
-- Set up proper logging/monitoring
-- Configure `FIRECRAWL_API_KEY` for job verification
-- Use a real embedding model (replace HashingVectorizer) for production semantic search
-- Set `APP_ENV=production` (enables MySQL, disables SQLite fallback)
-
----
-
-## Contributing
-
-We welcome contributions to CareerOS! Please follow these guidelines:
+We welcome contributions that make CareerOS better! Here's how to help:
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create your feature branch: `git checkout -b feature/your-feature-name`
+3. Make your changes
+4. Add tests for any new functionality
+5. Ensure all existing tests still pass
+6. Commit with a clear message: `git commit -m "Add: [brief description]"`
+7. Push to your branch: `git push origin feature/your-feature-name`
+8. Open a Pull Request
 
-Please ensure your code follows:
-- PEP 8 style guidelines
-- Includes appropriate tests
-- Passes all existing tests
-- Documents new functionality
+**Please ensure your contributions:**
+- Follow PEP 8 style guidelines
+- Include appropriate tests
+- Pass all existing tests
+- Document any new functionality
+
+## 📄 License
+
+CareerOS is free and open-source software licensed under the [MIT License](LICENSE).
+
+## 🙏 Acknowledgments
+
+- **Built with**: [FastAPI](https://fastapi.tiangolo.com/), [LangGraph](https://langchain-ai.github.io/langgraph/), and [React/Vite](https://vitejs.dev/)
+- **Job data provided by**: JSearch, Adzuna, Remotive, RemoteOK, and Arbeitnow APIs
+- **AI capabilities powered by**: Google Gemini, NVIDIA NIM, OpenRouter, and local Llama.cpp models
+- **Inspired by**: Everyone who's ever spent too much time searching for jobs and wished there was a better way
 
 ---
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## Acknowledgments
-
-- Built with [FastAPI](https://fastapi.tiangolo.com/), [LangGraph](https://langchain-ai.github.io/langgraph/), and [React/Vite](https://vitejs.dev/)
-- Job data sourced from JSearch, Adzuna, Remotive, RemoteOK, and Arbeitnow APIs
-- LLM capabilities powered by Google Gemini, NVIDIA NIM, OpenRouter, and local llama.cpp models
+**Ready to transform your job search?**  
+Clone the repo, add your API keys, and let CareerOS do the hard work while you focus on what matters—your next career move.
