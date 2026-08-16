@@ -224,6 +224,10 @@ a { color: inherit; text-decoration: none; }
   background: rgba(16, 16, 31, 0.78);
   box-shadow: var(--shadow-lg);
 }
+
+.job-card:focus-visible {
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
 @media (prefers-color-scheme: light) {
   .glass-card:hover {
     background: var(--bg-card-hover);

@@ -9,6 +9,7 @@ import SkeletonGrid from './components/ui/SkeletonGrid';
 import Tag from './components/ui/Tag';
 import { searchJobs, API_BASE } from './services/api';
 import { defaultSpring } from './utils/appleDesign';
+import { useReducedMotion } from './hooks/useReducedMotion';
 import './styles/globals.css';
 
 const LLM_PROVIDERS = ['auto', 'nvidia', 'openrouter', 'gemini', 'llama', 'none'];
@@ -25,6 +26,7 @@ export default function App() {
   const [error, setError] = useState('');
 
   const [showSkeleton, setShowSkeleton] = useState(false);
+  const reducedMotion = useReducedMotion();
 
   const doSearch = useCallback(async ({ query, location, jobType }) => {
     if (!query?.trim()) return;
@@ -93,16 +95,16 @@ export default function App() {
         }}
       >
         <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={defaultSpring}
+          initial={{ opacity: 0, y: reducedMotion ? 0 : 6 }}
+          animate={{ opacity: 1, y: reducedMotion ? 0 : 0 }}
+          transition={reducedMotion ? { opacity: { duration: 0.2 } } : defaultSpring}
         >
           <SearchBar onSearch={doSearch} loading={loading} />
         </motion.div>
 
         {view !== 'profile' && (
           <>
-            <motion.div style={{ marginTop: 'var(--space-5)' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.05, ...defaultSpring }}>
+            <motion.div style={{ marginTop: 'var(--space-5)' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={reducedMotion ? { delay: 0.05, duration: 0.2 } : { delay: 0.05, ...defaultSpring }}>
               <Filters filters={filters} onChange={setFilters} />
             </motion.div>
 
@@ -115,7 +117,7 @@ export default function App() {
               }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.1, ...defaultSpring }}
+              transition={reducedMotion ? { delay: 0.1, duration: 0.2 } : { delay: 0.1, ...defaultSpring }}
             >
               <h2 className="section-title">{view === 'saved' ? 'Saved opportunities' : 'Recommended'}</h2>
               <span className="text-tertiary" style={{ fontSize: '0.875rem' }}>{visible.length} results</span>
@@ -124,10 +126,10 @@ export default function App() {
             <AnimatePresence>
               {error ? (
                 <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={defaultSpring}
+                  initial={{ opacity: 0, y: reducedMotion ? 0 : 4 }}
+                  animate={{ opacity: 1, y: reducedMotion ? 0 : 0 }}
+                  exit={{ opacity: 0, y: reducedMotion ? 0 : -4 }}
+                  transition={reducedMotion ? { opacity: { duration: 0.2 } } : defaultSpring}
                   style={{
                     marginTop: 'var(--space-4)',
                     padding: 'var(--space-4)',
@@ -149,10 +151,10 @@ export default function App() {
                   <motion.div
                     key={job.id || job.source_id}
                     layout
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: reducedMotion ? 0 : 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ ...defaultSpring, delay: Math.min(idx, 8) * 0.04 }}
+                    exit={{ opacity: 0, y: reducedMotion ? 0 : -6 }}
+                    transition={reducedMotion ? { opacity: { duration: 0.2 }, delay: Math.min(idx, 8) * 0.04 } : { ...defaultSpring, delay: Math.min(idx, 8) * 0.04 }}
                   >
                     <JobCard
                       job={{ ...job, match_score: job.match_score ?? job.matchPercentage ?? 0 }}

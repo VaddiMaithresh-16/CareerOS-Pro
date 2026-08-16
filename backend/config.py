@@ -58,8 +58,11 @@ class Settings(BaseSettings):
 
         # Build MySQL URL from components
         if all([self.mysql_host, self.mysql_port, self.mysql_database, self.mysql_user]):
+            # URL-encode the password to handle special characters like @
+            from urllib.parse import quote_plus
+            encoded_password = quote_plus(self.mysql_password)
             return (
-                f"mysql+pymysql://{self.mysql_user}:{self.mysql_password}"
+                f"mysql+pymysql://{self.mysql_user}:{encoded_password}"
                 f"@{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
             )
 

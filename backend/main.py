@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 
 from fastapi import FastAPI, Depends
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from backend.config import get_settings
 from backend.db import Base, engine, get_db
@@ -22,6 +22,7 @@ logger = logging.getLogger("careeros")
 settings = get_settings()
 
 _warn_if_unsafe_rate_limit_config()
+
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,8 +54,8 @@ def health():
         db_gen = get_db()
         db = next(db_gen)
         # Test basic query
-        from backend.models import Job
-        result = db.execute(sql_inspect(Job.__table__)).all()
+        from sqlalchemy import text
+        result = db.execute(text("SELECT 1")).all()
         health_status["checks"]["database"] = {"status": "ok", "detail": "MySQL connection successful"}
         db.close()
     except Exception as e:
@@ -69,7 +70,7 @@ def health():
     }
 
     # Check embedding model availability
-from backend.services.embeddings import get_embedding_provider
+    from backend.services.embeddings import get_embedding_provider
     try:
         provider = get_embedding_provider()
         _ = provider.embed("test")
@@ -78,7 +79,7 @@ from backend.services.embeddings import get_embedding_provider
         health_status["checks"]["embedding_model"] = {"status": "degraded", "detail": str(e)}
 
     # Check Qdrant vector store (local mode)
-from backend.services.vector_store import get_client
+    from backend.services.vector_store import get_client
     try:
         client = get_client()
         # Just verify client can be created (collection check is separate)
@@ -93,13 +94,13 @@ from backend.services.vector_store import get_client
 def readiness():
     """Readiness probe - returns 200 if the app can serve requests, 503 otherwise."""
     from fastapi import HTTPException
+    from sqlalchemy import text
 
     # Quick database check
     try:
         db_gen = get_db()
         db = next(db_gen)
-        from backend.models import Job
-        db.execute(sql_inspect(Job.__table__))
+        result = db.execute(text("SELECT 1")).all()
         db.close()
         return {"status": "ready"}
     except Exception:
@@ -176,7 +177,7 @@ async def match_jobs(req: MatchRequest, db: Session = Depends(get_db)):
     -> hybrid retrieve -> rerank -> evidence-based explain. Stops before human
     review — nothing here marks anything as applied without a separate approval call.
     """
-from backend.graph import run_match_workflow
+    from backend.graph import run_match_workflow
 
     thread_id = f"match-{id(req)}"
     # Pass llm_provider and model_name to the workflow
@@ -208,7 +209,7 @@ async def verify_job(job_id: str, db: Session = Depends(get_db)):
     confirmed result — reachability alone is not enough (spec 2.3: never guess)."""
     from fastapi import HTTPException
     from datetime import datetime, timezone
-from backend.services.verification import verify_job_posting
+    from backend.services.verification import verify_job_posting
 
     job = db.get(Job, job_id)
     if not job:
@@ -222,4 +223,3 @@ from backend.services.verification import verify_job_posting
     db.commit()
     db.refresh(job)
     return job
-

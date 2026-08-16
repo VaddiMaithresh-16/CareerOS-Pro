@@ -70,6 +70,10 @@ export default function JobCard({ job, onOpen, onSave, saved = false }) {
 
   return (
     <motion.div
+      className="job-card"
+      tabIndex={0}
+      role="button"
+      aria-label={job.title ? `View details for ${job.title}` : 'View job details'}
       style={{ x }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -78,6 +82,13 @@ export default function JobCard({ job, onOpen, onSave, saved = false }) {
       initial={false}
       transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
       onClick={() => onOpen?.(job)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          onOpen?.(job);
+        }
+      }}
     >
       {/* "Saved" hint revealed as the card is swiped */}
       <motion.div

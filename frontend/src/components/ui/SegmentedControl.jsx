@@ -10,8 +10,6 @@ import { defaultSpring } from '../../utils/appleDesign';
 export default function SegmentedControl({ options, value, onChange, ariaLabel }) {
   const refs = useRef({});
 
-  const activeIndex = Math.max(0, options.findIndex((o) => o.value === value));
-
   // Compute pill position from the active segment's measured box
   const getStyle = () => {
     const el = refs.current[value];

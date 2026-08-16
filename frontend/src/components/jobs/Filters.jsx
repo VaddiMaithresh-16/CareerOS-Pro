@@ -1,10 +1,8 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import SegmentedControl from '../ui/SegmentedControl';
-import { springPresets } from '../../utils/appleDesign';
 
 /**
- * Filters — collapsible advanced filters.
+ * Filters — permanently visible advanced filters.
  * Uses native inputs styled per the design system. Per §1, focus states are instant.
  */
 const REMOTE_OPTS = [
@@ -13,7 +11,10 @@ const REMOTE_OPTS = [
   { value: 'onsite', label: 'On-site' },
 ];
 
-const EXP_LEVELS = ['Any', 'Intern', 'Fresher', 'Entry', 'Mid', 'Senior'];
+// Custom order for experience levels (removed duplicate 'Any', re-ordered in descending order)
+const EXP_LEVELS = ['Senior', 'Mid', 'Entry', 'Fresher', 'Intern', 'Any'];
+
+// Custom order for posted within (more recent first)
 const POSTED = [
   { value: '', label: 'Any time' },
   { value: '1', label: 'Last 24h' },
@@ -27,40 +28,16 @@ const EMP_TYPES = ['Full-time', 'Part-time', 'Internship', 'Contract', 'Temporar
 const SOURCES = ['jsearch', 'adzuna', 'remotive', 'remoteok', 'arbeitnow'];
 
 export default function Filters({ filters, onChange }) {
-  const [open, setOpen] = useState(false);
   const set = (patch) => onChange({ ...filters, ...patch });
 
   return (
-    <div>
-      <motion.button
-        onClick={() => setOpen((o) => !o)}
-        className="btn btn-secondary btn-sm"
-        style={{ width: '100%', justifyContent: 'center' }}
-        aria-expanded={open}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.96 }}
-        transition={{ type: 'spring', bounce: 0, duration: 0.2 }}
-      >
-        {open ? 'Hide filters' : 'Show filters'}
-        <span style={{ fontSize: '0.7rem', marginLeft: 4 }}>{open ? '▴' : '▾'}</span>
-      </motion.button>
-
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={springPresets.gentle}
-            style={{ overflow: 'hidden' }}
-          >
-            <div className="glass-card" style={{
-              borderRadius: 'var(--r-3)',
-              padding: 'var(--space-5)',
-              marginTop: 'var(--space-3)',
-              display: 'grid',
-              gap: 'var(--space-5)',
-            }}>
+    <div className="glass-card" style={{
+      borderRadius: 'var(--r-3)',
+      padding: 'var(--space-5)',
+      marginTop: 'var(--space-3)',
+      display: 'grid',
+      gap: 'var(--space-5)',
+    }}>
               {/* Source */}
               <FilterRow label="Source">
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
@@ -108,41 +85,29 @@ export default function Filters({ filters, onChange }) {
 
               {/* Experience level */}
               <FilterRow label="Experience">
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                  {EXP_LEVELS.map((lvl) => {
-                    const active = (filters.experience_level || 'Any') === lvl;
-                    return (
-                      <motion.button
-                        key={lvl}
-                        onClick={() => set({ experience_level: lvl === 'Any' ? '' : lvl })}
-                        className={`btn btn-sm ${active ? 'btn-primary' : 'btn-secondary'}`}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.96 }}
-                        transition={{ type: 'spring', bounce: 0, duration: 0.2 }}
-                      >
-                        {lvl}
-                      </motion.button>
-                    );
-                  })}
-                </div>
+                <SegmentedControl
+                  options={EXP_LEVELS.map((lvl) => ({ value: lvl, label: lvl }))}
+                  value={filters.experience_level || ''}
+                  onChange={(v) => set({ experience_level: v })}
+                  ariaLabel="Experience level"
+                />
               </FilterRow>
 
               {/* Posted within */}
-              <FilterRow label="Posted within" stacked>
-                <select
-                  className="input select"
+              <FilterRow label="Posted within">
+                <SegmentedControl
+                  options={POSTED.map((p) => ({ value: p.value, label: p.label }))}
                   value={filters.posted_within_days || ''}
-                  onChange={(e) => set({ posted_within_days: e.target.value })}
-                  style={{ height: 44 }}
-                >
-                  {POSTED.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                </select>
+                  onChange={(v) => set({ posted_within_days: v })}
+                  ariaLabel="Posted within"
+                />
               </FilterRow>
 
               {/* Salary range */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
-                <FilterRow label="Min salary (₹/yr)" stacked>
+                <FilterRow label="Min salary (₹/yr)" stacked htmlFor="salary-min">
                   <input
+                    id="salary-min"
                     className="input"
                     type="number"
                     min="0"
@@ -153,8 +118,9 @@ export default function Filters({ filters, onChange }) {
                     style={{ height: 44 }}
                   />
                 </FilterRow>
-                <FilterRow label="Max salary (₹/yr)" stacked>
+                <FilterRow label="Max salary (₹/yr)" stacked htmlFor="salary-max">
                   <input
+                    id="salary-max"
                     className="input"
                     type="number"
                     min="0"
@@ -167,14 +133,10 @@ export default function Filters({ filters, onChange }) {
                 </FilterRow>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
   );
 }
 
-function FilterRow({ label, children, stacked = false }) {
+function FilterRow({ label, children, stacked = false, htmlFor }) {
   const rowStyle = {
     display: 'flex',
     flexDirection: 'row',
@@ -191,7 +153,15 @@ function FilterRow({ label, children, stacked = false }) {
   }
   return (
     <div style={rowStyle}>
-      <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>{label}</label>
+      <label
+        htmlFor={htmlFor}
+        style={{
+          fontSize: '0.875rem',
+          fontWeight: 500,
+          color: 'var(--color-text-secondary)' ,
+          ...(stacked && { marginBottom: 'var(--space-1)' })
+        }}
+      >{label}</label>
       {children}
     </div>
   );
