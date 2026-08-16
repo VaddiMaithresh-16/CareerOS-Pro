@@ -8,8 +8,9 @@ Whether you're hunting for internships, entry-level positions, or career moves, 
 
 ## 🚀 Quick Start
 
-Get running in minutes:
+Get running in minutes with two options:
 
+### Option 1: Development (local)
 ```bash
 # 1. Clone the repository
 git clone https://github.com/VaddiMaithresh-16/CareerOs-Pro.git
@@ -36,6 +37,17 @@ cd frontend
 npm install
 npm run dev
 # App at: http://localhost:5173
+```
+
+### Option 2: Docker (containerized)
+```bash
+# Build the image
+docker build -t careeros-pro .
+
+# Run the container
+docker run -p 8000:8000 -e APP_ENV=production careeros-pro
+# Or with Docker Compose:
+# docker-compose up -d
 ```
 
 <hr>
