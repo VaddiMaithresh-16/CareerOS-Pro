@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 
 from fastapi import FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from backend.config import get_settings
@@ -29,10 +30,29 @@ async def lifespan(app: FastAPI):
     # Startup: create database tables
     Base.metadata.create_all(bind=engine)
     yield  # Application runs here
-    # Shutdown: nothing to clean up currently (in-memory rate limits are per-process)
+    # Shutdown: close reusable HTTP clients
+    from backend.services.job_api_adapter import _http_client
+    from backend.services.verification import _http_client as _verify_client, _firecrawl_client
+    for client in (_http_client, _verify_client, _firecrawl_client):
+        if client is not None:
+            await client.aclose()
 
 
 app = FastAPI(title="CareerOS", version="0.2.0", lifespan=lifespan)
+
+# CORS middleware - allow frontend origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.add_middleware(RateLimitMiddleware, requests_per_minute=settings.rate_limit_per_minute)
 app.add_middleware(RequestContextMiddleware)

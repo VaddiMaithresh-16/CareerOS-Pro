@@ -1,14 +1,19 @@
-"""Job discovery adapters. API-first (spec 2.4). mock mode needs no key, for dev/tests.
+"""Job discovery adapters. API-first (spec 2.4).
 Multi-source aggregation: dedup.py already collapses overlapping postings across
 sources by url_hash/content_hash, so adding a second real API is pure upside —
 more coverage, same dedup guarantee.
+Company career page scraper is a secondary source that complements API coverage
+with deterministic dedup — duplicates are automatically collapsed by url_hash.
 """
 
 import httpx
 import logging
+import re
+import asyncio
 from typing import Protocol
 from backend.config import get_settings
 from backend.schemas import RawJobPosting
+from backend.services.company_scraper import scrape_company_jobs, hash_url, hash_content
 
 settings = get_settings()
 logger = logging.getLogger("careeros")
@@ -294,10 +299,6 @@ class MultiSourceAdapter:
         self._adapters = adapters
 
     async def search(self, query: str, location: str | None = None) -> list[RawJobPosting]:
-        import asyncio
-        import logging
-
-        logger = logging.getLogger("careeros")
         results: list[RawJobPosting] = []
 
         outcomes = await asyncio.gather(
@@ -329,6 +330,9 @@ def get_adapter() -> JobSourceAdapter:
         configured.append(RemoteOKAdapter())
     if "arbeitnow" in requested:
         configured.append(ArbeitnowAdapter())
+    # company scraper — free, no key required, secondary source for broader coverage
+    if "company" in requested:
+        configured.append(_CompanyScraperAdapter())
 
     if not configured:
         import logging
@@ -341,3 +345,74 @@ def get_adapter() -> JobSourceAdapter:
     if len(configured) == 1:
         return configured[0]
     return MultiSourceAdapter(configured)
+
+
+class _CompanyScraperAdapter:
+    """Adapter wrapping the company career page scraper.
+
+    This is a free, no-credential-required source that scrapes company career pages.
+    It's intentionally placed after the key-required sources so it's used when
+    no other sources have valid credentials, but can also be combined with them.
+    """
+
+    async def search(self, query: str, location: str | None = None) -> list[RawJobPosting]:
+        # Try to infer company from query, or use general search
+        # For now, try a few common company career page patterns
+        results = []
+
+        # Extract potential company name from query (first word capitalized)
+        query_words = query.strip().split()
+        if query_words:
+            potential_company = query_words[0].rstrip(",;:")
+            # Scrape career pages for this company
+            company_results = await scrape_company_jobs(
+                company_name=potential_company,
+                location=location,
+            )
+            results.extend(company_results)
+
+        # If no results from company scraping, try a generic approach
+        if not results:
+            # Try scraping some known company career pages
+            company_names = _infer_company_names_from_query(query)
+            # Scrape multiple companies concurrently with limited concurrency
+            semaphore = asyncio.Semaphore(settings.company_scraper_max_concurrency)
+            async def _scrape_one(company_name: str) -> list[RawJobPosting]:
+                async with semaphore:
+                    return await scrape_company_jobs(
+                        company_name=company_name,
+                        location=location,
+                    )
+            tasks = [_scrape_one(name) for name in company_names]
+            company_results = await asyncio.gather(*tasks, return_exceptions=True)
+            for company_result in company_results:
+                if not isinstance(company_result, Exception):
+                    results.extend(company_result)
+            # Fallback: scrape a short list of popular companies sequentially if no matches
+            if not results:
+                for company in ["Google", "Microsoft", "Apple", "Amazon", "Meta"]:
+                    try:
+                        company_results = await scrape_company_jobs(
+                            company_name=company,
+                            location=location,
+                        )
+                        results.extend(company_results)
+                    except Exception as e:
+                        logger.warning("Company scrape failed for %s: %s", company, e)
+                        continue
+
+        return results
+
+
+async def _infer_company_names_from_query(query: str) -> list[str]:
+    """Very light heuristic to pull potential company names from a search query."""
+    # Split on common separators and capitalize each token
+    raw_tokens = re.split(r"[\\s_,;]+", query.lower())
+    # Simple heuristic: words that look like proper nouns (first letter upper)
+    candidates = [tok.capitalize() for tok in raw_tokens if tok and tok[0].isalpha()]
+    # Filter out very common non-company tokens
+    stop_words = {
+        "remote", "full", "part", "time", "intern", "contract", "jobs", "job",
+        "hiring", "careers", "career", "employment", "position", "vacancy"
+    }
+    return [cand for cand in candidates if cand not in stop_words][:5]

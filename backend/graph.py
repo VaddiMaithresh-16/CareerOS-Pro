@@ -64,7 +64,7 @@ async def get_checkpointer():
         _checkpointer_singleton["cm"] = cm
         _checkpointer_singleton["instance"] = checkpointer
         return checkpointer
-    except (ImportError, RuntimeError, OSError) as exc:
+    except Exception as exc:
         import logging
         logging.getLogger("careeros").warning(
             "MySQL checkpointer setup failed (%s) — falling back to MemorySaver. "

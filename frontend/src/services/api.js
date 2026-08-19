@@ -16,27 +16,33 @@ export async function searchJobs({
   llm_provider,
   model_name,
 }) {
-  const url = new URL(`${BASE}/jobs/search`);
-  const params = {
-    query,
-    top_k,
-    location: location || 'India',
+  // Map frontend filter fields to backend SearchRequest schema
+  const payload = {
+    query: query?.trim() || '',
+    location: location?.trim() || (location ? location.trim() : undefined),
     employment_type: employment_type || undefined,
-    remote: remote && remote !== 'any' ? remote : undefined,
-    experience_level: experience_level && experience_level !== 'Any' ? experience_level : undefined,
-    salary_min: salary_min || undefined,
-    salary_max: salary_max || undefined,
-    posted_within_days: posted_within_days || undefined,
+    experience_level: experience_level && experience_level !== 'Any' ? experience_level.toLowerCase() : undefined,
+    // Backend expects remote_only: true for remote-only filter
+    remote_only: remote === 'remote' ? true : false,
+    min_salary: salary_min ? Number(salary_min) : undefined,
+    posted_within_days: posted_within_days ? Number(posted_within_days) : undefined,
     llm_provider: llm_provider || undefined,
     model_name: model_name || undefined,
   };
-  if (Array.isArray(sources) && sources.length) {
-    params.sources = sources.join(',');
-  }
-  Object.entries(params).forEach(([k, v]) => v !== undefined && v !== '' && v !== null && url.searchParams.set(k, v));
-  const r = await fetch(url, { method: 'GET', headers: { 'X-Request-ID': crypto.randomUUID() } });
+
+  const r = await fetch(`${BASE}/jobs/search`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Request-ID': crypto.randomUUID()
+    },
+    body: JSON.stringify(payload),
+  });
   if (!r.ok) throw new Error(`Search failed: ${r.status}`);
-  return r.json();
+
+  const data = await r.json();
+  // Backend returns array directly, handle both array and object with results
+  return Array.isArray(data) ? data : (data.results || []);
 }
 
 /** Run full match pipeline for a query. */
@@ -59,7 +65,10 @@ export async function getJob(id) {
 
 /** Verify a posting is still live. */
 export async function verifyJob(id) {
-  const r = await fetch(`${BASE}/jobs/${id}/verify`, { method: 'POST' });
+  const r = await fetch(`${BASE}/jobs/${id}/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Request-ID': crypto.randomUUID() },
+  });
   if (!r.ok) throw new Error(`Verify failed: ${r.status}`);
   return r.json();
 }

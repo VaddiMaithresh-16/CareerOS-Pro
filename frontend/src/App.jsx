@@ -7,7 +7,7 @@ import JobCard from './components/jobs/JobCard';
 import JobDetail from './components/jobs/JobDetail';
 import SkeletonGrid from './components/ui/SkeletonGrid';
 import Tag from './components/ui/Tag';
-import { searchJobs, API_BASE } from './services/api';
+import { searchJobs, verifyJob as apiVerifyJob } from './services/api';
 import { defaultSpring } from './utils/appleDesign';
 import { useReducedMotion } from './hooks/useReducedMotion';
 import './styles/globals.css';
@@ -66,11 +66,7 @@ export default function App() {
   const verifyJob = useCallback(async (job) => {
     setVerifyingId(job.id);
     try {
-      const res = await fetch(`${API_BASE}/jobs/${job.id}/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Request-ID': crypto.randomUUID() },
-      });
-      const json = await res.json();
+      const json = await apiVerifyJob(job.id);
       setSelectedJob((prev) => (prev?.id === job.id ? { ...prev, ...json, verified: true } : prev));
     } catch {
       // keep silent; verification is best-effort

@@ -198,7 +198,7 @@ class ModelRouter:
                 result = await self._nvidia.structured(prompt, MatchExplanation)
                 if result.confidence >= 0.6:
                     return result
-            except (httpx.HTTPError, ValidationError, KeyError, json.JSONDecodeError, RuntimeError):
+            except Exception:
                 pass  # fall through
 
         # 3. Try OpenRouter (100+ models, free tier available)
@@ -207,7 +207,7 @@ class ModelRouter:
                 result = await self._openrouter.structured(prompt, MatchExplanation)
                 if result.confidence >= 0.6:
                     return result
-            except (httpx.HTTPError, ValidationError, KeyError, json.JSONDecodeError, RuntimeError):
+            except Exception:
                 pass  # fall through
 
         # 4. Try Google Gemini (generous free tier)

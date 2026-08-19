@@ -1,5 +1,5 @@
 import { motion, useMotionValue, useTransform } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Tag from '../ui/Tag';
 import { useDragVelocity } from '../../hooks/useDragVelocity';
 import { project } from '../../utils/appleDesign';
@@ -53,7 +53,9 @@ export default function JobCard({ job, onOpen, onSave, saved = false }) {
   const [cardSaved, setCardSaved] = useState(saved);
 
   // Keep local state in sync with external `saved` prop
-  useState(() => { setCardSaved(saved); }, [saved]);
+  useEffect(() => {
+    setCardSaved(saved);
+  }, [saved]);
 
   const onRelease = (offset, velocity) => {
     // Project momentum forward (§6), decide save vs snap back

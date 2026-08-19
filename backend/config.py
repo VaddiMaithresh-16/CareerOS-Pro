@@ -2,6 +2,9 @@
 
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import List, Dict
+
+# RawJobPosting imported via schemas - removed unused import
 
 
 class Settings(BaseSettings):
@@ -48,6 +51,12 @@ class Settings(BaseSettings):
 
     llm_provider_mode: str = "auto"  # "auto" | "llama" | "gemini" | "openrouter" | "nvidia" | "none"
 
+    # Company scraper configuration
+    company_career_page_patterns: List[str] = []  # Custom URL patterns for career pages
+    company_scraper_cache_size: int = 100  # Max entries in HTML cache
+    company_scraper_max_concurrency: int = 5  # Max concurrent scraper requests per domain
+    company_scraper_jitter_max: float = 0.5  # Max seconds of jitter added to retry delays
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
@@ -60,6 +69,7 @@ class Settings(BaseSettings):
         if all([self.mysql_host, self.mysql_port, self.mysql_database, self.mysql_user]):
             # URL-encode the password to handle special characters like @
             from urllib.parse import quote_plus
+
             encoded_password = quote_plus(self.mysql_password)
             return (
                 f"mysql+pymysql://{self.mysql_user}:{encoded_password}"
