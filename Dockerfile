@@ -16,11 +16,10 @@ USER careeros
 COPY --chown=careeros:careeros requirements.txt .
 
 # Install Python dependencies
-RUN pip install no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy application code (no .env files — mount secrets at runtime)
 COPY --chown=careeros:careeros backend/ ./backend/
-COPY --chown=careeros:careeros .env* ./
 
 # Expose backend port
 EXPOSE 8000

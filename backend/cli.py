@@ -84,10 +84,10 @@ async def _run():
                 return False
             return True
 
-        filtered_postings = [p.dict() for p in postings if within_range(p)]
+        filtered_postings = [p.model_dump() for p in postings if within_range(p)]
     else:
         # No salary filter – use all postings
-        filtered_postings = [p.dict() for p in postings]
+        filtered_postings = [p.model_dump() for p in postings]
 
     # If no explicit salary filter, provide “Suggested Jobs” section
     suggested_postings: List[dict] = []

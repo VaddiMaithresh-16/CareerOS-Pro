@@ -33,8 +33,9 @@ _checkpointer_singleton: dict = {}
 
 
 def _mysql_dsn() -> str:
+    # Use mysql+aiomysql:// scheme for AIOMySQLSaver compatibility
     return (
-        f"mysql://{settings.mysql_user}:{settings.mysql_password}"
+        f"mysql+aiomysql://{settings.mysql_user}:{settings.mysql_password}"
         f"@{settings.mysql_host}:{settings.mysql_port}/{settings.mysql_database}"
     )
 
@@ -116,9 +117,12 @@ async def _retrieve_and_rerank(state: CareerOSState, db: Session) -> CareerOSSta
     semantic_hits = dict(semantic_search(client, req.query, limit=50))
 
     # Batch fetch all jobs at once to avoid N+1 query problem
+    # Only fetch active jobs to avoid loading inactive postings
     jobs_map = {}
     if state["candidate_ids"]:
-        jobs = db.execute(select(Job).where(Job.id.in_(state["candidate_ids"]))).scalars().all()
+        jobs = db.execute(
+            select(Job).where(Job.id.in_(state["candidate_ids"]), Job.is_active == True)
+        ).scalars().all()
         jobs_map = {job.id: job for job in jobs}
 
     scored = []

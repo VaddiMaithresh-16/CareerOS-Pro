@@ -20,7 +20,7 @@ from bs4 import BeautifulSoup
 
 from backend.config import get_settings
 from backend.schemas import RawJobPosting
-from backend.services.normalize import hash_url, hash_content
+from backend.services.normalize import hash_url
 
 logger = logging.getLogger("careeros")
 settings = get_settings()
@@ -82,7 +82,6 @@ class CompanyScraper:
         self._semaphore_value = per_domain_limit
         self._jitter_max = jitter_max if jitter_max is not None else settings.company_scraper_jitter_max
         cache_size_val = cache_size if cache_size is not None else settings.company_scraper_cache_size
-        self._semaphore = asyncio.Semaphore(per_domain_limit)
         # Mapping of hostname → its own semaphore (created lazily).
         self._domain_semaphores: Dict[str, asyncio.Semaphore] = {}
         self._html_cache: Dict[str, str] = {}
@@ -123,15 +122,26 @@ class CompanyScraper:
                             self._html_cache[url] = content
                             return content
                         else:
+                            # Retry on transient server errors / rate limits;
+                            # 429 (rate limited), 500/502/503 (server errors) are worth retrying.
+                            if resp.status_code in (429, 500, 502, 503) and retry_count < 2:
+                                logger.warning(
+                                    "Career page returned %s for %s — retrying (%d/3)",
+                                    resp.status_code, url, retry_count + 1,
+                                )
+                                retry_count += 1
+                                jitter = random.uniform(0, self._jitter_max)
+                                await asyncio.sleep(2 ** retry_count + jitter)
+                                continue
                             logger.warning(
                                 "Career page returned %s for %s", resp.status_code, url
                             )
-                            break
+                            return None
                 except httpx.HTTPError as e:
                     logger.error("HTTP error fetching %s: %s", url, e)
                     retry_count += 1
                     # Exponential back‑off with jitter (0‑0.5 s)
-                    jitter = random.uniform(0, 0.5)
+                    jitter = random.uniform(0, self._jitter_max)
                     await asyncio.sleep(2 ** retry_count + jitter)
             return None
 
@@ -244,7 +254,13 @@ class CompanyScraper:
         return text[:500]
 
     @staticmethod
-    def _extract_apply_url(card: BeautifulSoup, base_url: str) -> str:
+    def _extract_apply_url(card: BeautifulSoup, base_url: str) -> str | None:
+        """Extract job-specific apply URL from a job card.
+
+        Returns None if no job-specific apply link is found, to avoid
+        duplicate url_hash collisions across multiple job cards that would
+        all fall back to the same base_url.
+        """
         for a in card.find_all("a", href=True):
             href = a["href"]
             text = a.get_text(strip=True).lower()
@@ -263,7 +279,9 @@ class CompanyScraper:
             elif not href.startswith("http"):
                 return urljoin(base_url, href)
             return href
-        return base_url
+        # No job-specific apply link found — return None so caller can skip
+        # or construct a unique fallback (e.g., with title slug).
+        return None
 
     @staticmethod
     def _compute_source_id(
@@ -329,7 +347,7 @@ class CompanyScraper:
                 return []
 
             results: List[RawJobPosting] = []
-            for card in cards:
+            for idx, card in enumerate(cards):
                 try:
                     title = self._extract_title(card).strip()
                     company = self._extract_company(card).strip() or company_name
@@ -338,8 +356,16 @@ class CompanyScraper:
                     description = self._extract_description(card).strip()
                     apply_url = self._extract_apply_url(card, career_url)
 
-                    if not title or not apply_url:
-                        continue  # Skip incomplete entries
+                    # If no job-specific apply URL, construct a unique fallback
+                    # using title slug + index to avoid url_hash collisions
+                    if not apply_url:
+                        title_slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+                        apply_url = f"{career_url.rstrip('/')}/job/{title_slug}-{idx}"
+                        if not apply_url:
+                            continue  # Still no URL, skip
+
+                    if not title:
+                        continue  # Skip entries without title
 
                     normalized_location = self._normalize_location(location_raw)
                     source_id = self._compute_source_id(

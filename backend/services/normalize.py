@@ -51,6 +51,7 @@ _SALARY_RE = re.compile(
     r"(?P<min>[\d,]+(?:\.\d+)?)\s*(?P<min_k>k|K)?"
     r"(?:\s*[-–to]+\s*(?:₹|\$|€|£|Rs\.?|INR|USD|EUR|GBP)?\s*"
     r"(?P<max>[\d,]+(?:\.\d+)?)\s*(?P<max_k>k|K)?)?"
+    r"(?:\s*(?P<postfix>Rs\.?|INR|USD|EUR|GBP))?"
 )
 
 _CURRENCY_MAP = {
@@ -122,7 +123,11 @@ def parse_experience_level(title: str, description: str) -> str:
 
 
 def parse_salary(raw: str | None) -> tuple[float | None, float | None, str]:
-    """Best-effort deterministic salary parse. Returns (min, max, currency)."""
+    """Best-effort deterministic salary parse. Returns (min, max, currency).
+
+    Supports both prefix currency (e.g., "$100,000") and postfix currency
+    (e.g., "100,000 USD", "80k EUR", "50000 INR").
+    """
     if not raw:
         return None, None, "unknown"
     m = _SALARY_RE.search(raw)
@@ -140,7 +145,10 @@ def parse_salary(raw: str | None) -> tuple[float | None, float | None, str]:
     hi = to_float(m.group("max")) or lo
     if m.group("max_k"):
         hi *= 1000
+    # Prefer prefix currency if present, otherwise check postfix
     currency_raw = (m.group("currency") or "").strip().lower()
+    if not currency_raw:
+        currency_raw = (m.group("postfix") or "").strip().lower()
     currency = _CURRENCY_MAP.get(currency_raw, "unknown")
     return lo, hi, currency
 

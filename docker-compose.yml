@@ -1,0 +1,91 @@
+version: "3.9"
+
+services:
+  # --- MySQL (Source of truth for jobs) ---
+  mysql:
+    image: mysql:8.0
+    container_name: careeros-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password_change_me}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-careeros}
+      MYSQL_USER: ${MYSQL_USER:-careeros}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-careeros_password_change_me}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_PASSWORD:-careeros_password_change_me}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - careeros-net
+
+  # --- Qdrant (Vector store for semantic retrieval) ---
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: careeros-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - careeros-net
+
+  # --- Backend API (FastAPI + Granian) ---
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: careeros-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-careeros}:${MYSQL_PASSWORD:-careeros_password_change_me}@mysql:3306/${MYSQL_DATABASE:-careeros}
+      JOB_API_MODE: ${JOB_API_MODE:-live}
+      JOB_SOURCES: ${JOB_SOURCES:-jsearch,adzuna,remotive,remoteok,arbeitnow}
+      LLM_PROVIDER_MODE: ${LLM_PROVIDER_MODE:-auto}
+      QDRANT_URL: http://qdrant:6333
+      # Secrets passed via .env file mounted at runtime — never baked into image
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    networks:
+      - careeros-net
+
+  # --- Frontend (React + Vite) ---
+  frontend:
+    image: node:20-alpine
+    container_name: careeros-frontend
+    restart: unless-stopped
+    working_dir: /app
+    depends_on:
+      - backend
+    environment:
+      VITE_API_BASE: http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    ports:
+      - "5173:5173"
+    networks:
+      - careeros-net
+
+volumes:
+  mysql_data:
+  qdrant_data:
+
+networks:
+  careeros-net:
+    driver: bridge

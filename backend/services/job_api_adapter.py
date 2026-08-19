@@ -13,7 +13,7 @@ import asyncio
 from typing import Protocol
 from backend.config import get_settings
 from backend.schemas import RawJobPosting
-from backend.services.company_scraper import scrape_company_jobs, hash_url, hash_content
+from backend.services.company_scraper import scrape_company_jobs, hash_url
 
 settings = get_settings()
 logger = logging.getLogger("careeros")
@@ -312,6 +312,23 @@ class MultiSourceAdapter:
         return results
 
 
+class SafeSingleSourceAdapter:
+    """Wraps a single source adapter to catch exceptions gracefully.
+
+    Instead of raising unhandled exceptions (500s), returns empty list with a warning.
+    """
+
+    def __init__(self, adapter: JobSourceAdapter):
+        self._adapter = adapter
+
+    async def search(self, query: str, location: str | None = None) -> list[RawJobPosting]:
+        try:
+            return await self._adapter.search(query, location)
+        except Exception as e:
+            logger.warning("job source %s failed: %s", type(self._adapter).__name__, e)
+            return []
+
+
 def get_adapter() -> JobSourceAdapter:
     if settings.job_api_mode != "live":
         return MockJobAdapter()
@@ -343,7 +360,10 @@ def get_adapter() -> JobSourceAdapter:
         )
         return MockJobAdapter()  # live mode requested but no source has a working key
     if len(configured) == 1:
-        return configured[0]
+        # Wrap the single source in a safe adapter so any network error / timeout
+        # is caught gracefully and surfaced as an empty result (with a warning)
+        # instead of an unhandled 500. MultiSourceAdapter does this for free.
+        return SafeSingleSourceAdapter(configured[0])
     return MultiSourceAdapter(configured)
 
 
@@ -407,7 +427,7 @@ class _CompanyScraperAdapter:
 async def _infer_company_names_from_query(query: str) -> list[str]:
     """Very light heuristic to pull potential company names from a search query."""
     # Split on common separators and capitalize each token
-    raw_tokens = re.split(r"[\\s_,;]+", query.lower())
+    raw_tokens = re.split(r"[\s_,;]+", query.lower())
     # Simple heuristic: words that look like proper nouns (first letter upper)
     candidates = [tok.capitalize() for tok in raw_tokens if tok and tok[0].isalpha()]
     # Filter out very common non-company tokens

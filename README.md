@@ -1,17 +1,19 @@
-# CareerOS‑Pro Job Scraper
+# CareerOS‑Pro
 
-A lightweight, high‑performance scraper that extracts job postings from company career pages.  
-It is designed to be **fast**, **polite**, and **configurable**, making it suitable for both personal use and integration into larger job‑aggregation pipelines.
+AI‑powered career intelligence platform that **autonomously discovers, filters, ranks, and explains** job and internship opportunities. It aggregates listings from multiple free and paid sources, normalizes them deterministically, deduplicates, applies hard eligibility filters, and uses an LLM routing pipeline to explain matches.
 
 ---
 
 ## Table of Contents
 - [Features](#features)
-- [Installation](#installation)
-- [Configuration (`backend/config.py`)](#configuration)
-- [Command‑Line Interface](#cli-usage)
-- [Advanced Usage](#advanced-usage)
-- [Running the Test Suite](#testing)
+- [Architecture](#architecture)
+- [Quick Start](#quick-start)
+- [Backend Setup](#backend-setup)
+- [Frontend Setup](#frontend-setup)
+- [Docker Deployment](#docker-deployment)
+- [Configuration](#configuration)
+- [CLI Usage](#cli-usage)
+- [Testing](#testing)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -19,154 +21,173 @@ It is designed to be **fast**, **polite**, and **configurable**, making it suita
 
 ## Features
 
-- **Per‑domain concurrency control** – each company’s career page runs within its own semaphore, preventing over‑loading any single site.  
-- **Retry jitter** – exponential back‑off with a random jitter component to avoid thundering‑herd effects.  
-- **In‑memory HTML caching** with configurable size and TTL.  
-- **Deterministic deduplication** – unchanged hash‑based dedup logic.  
-- **Rich CLI** – JSON output with optional overrides for concurrency and jitter.  
-- **Extensible URL patterns** – add new career‑page patterns via configuration.  
+- **Multi‑source aggregation** — JSearch (RapidAPI), Adzuna, Remotive, RemoteOK, Arbeitnow, plus a free company‑career‑page scraper (BeautifulSoup4).
+- **Deterministic normalization** — no LLM in the parsing path. Location/remote classification, employment‑type mapping, experience‑level classification, and salary parsing with currency conversion.
+- **Two‑stage deduplication** — exact `url_hash` first, then `content_hash` fallback.
+- **Hard eligibility filters** — pure logic, LLM never overrides (employment type, experience, remote‑only, location alias matching, query string, min salary, posted‑within‑days).
+- **LLM routing & explanation** — LangGraph state machine with multi‑provider fallback (LlamaCpp → NVIDIA NIM → OpenRouter → Gemini).
+- **Two‑stage verification** — cheap HTTP HEAD check, then Firecrawl content scrape. Never invents a result.
+- **Polite company scraper** — per‑domain concurrency control (semaphore), exponential backoff with jitter, in‑memory HTML cache.
 
 ---
 
-## Installation
+## Architecture
+
+```
+Frontend (React 19 + Vite + Framer Motion)
+        │  REST / CORS
+        ▼
+Backend (FastAPI + Granian)
+  ├─ services/job_api_adapter.py   → MultiSourceAdapter (JSearch, Adzuna, Remotive, RemoteOK, Arbeitnow)
+  ├─ services/company_scraper.py    → BeautifulSoup4 career‑page scraper
+  ├─ services/normalize.py          → deterministic field normalization
+  ├─ services/dedup.py              → url_hash + content_hash dedup
+  ├─ services/filters.py            → hard eligibility filters
+  ├─ services/verification.py       → HEAD + Firecrawl verify
+  ├─ graph.py                       → LangGraph match/explain pipeline
+  ├─ models.py                      → MySQL (source of truth)
+  └─ config.py                      → pydantic_settings, env‑driven
+        │
+        ├─ MySQL (canonical job store)
+        └─ Qdrant (vector retrieval for semantic ranking)
+```
+
+**Data flow:** Sources → Normalize → Dedup → Filters → DB → (optional) LLM match/verify → Frontend.
+
+---
+
+## Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/your‑org/CareerOS-Pro.git
-cd CareerOS-Pro
+# Backend (terminal 1)
+cd backend && pip install -r ../requirements.txt && python run.py
+# API:    http://localhost:8000
+# Docs:   http://localhost:8000/docs
 
-# Install in editable mode (recommended for development)
-pip install -e .
+# Frontend (terminal 2)
+cd frontend && npm install && npm run dev
+# App:    http://localhost:5173
 ```
 
-The package requires Python 3.12+ and the following dependencies:
-
-```text
-httpx
-beautifulsoup4
-pydantic
-```
+Requires Python 3.11+ and Node 20+.
 
 ---
 
-## Configuration (`backend/config.py`)
+## Backend Setup
 
-The scraper reads the following settings (all with sensible defaults):
+```bash
+cd backend
+python -m venv venv && source venv/bin/activate
+pip install -r ../requirements.txt
+cp ../.env.example ../.env   # then fill in DB + API keys
+python run.py
+```
+
+The backend expects a reachable MySQL instance. `DATABASE_URL` is constructed from `MYSQL_*` env vars (see `.env.example`). Qdrant is optional for semantic ranking but recommended.
+
+---
+
+## Frontend Setup
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend reads `VITE_API_BASE` (defaults to `http://localhost:8000`). CORS is pre‑configured for ports `5173` and `3000`.
+
+---
+
+## Docker Deployment
+
+```bash
+# Build and start full stack (backend + MySQL + Qdrant + frontend)
+docker compose up -d
+
+# Or backend image only
+docker build -t careeros-pro .
+docker run -p 8000:8000 -e APP_ENV=production careeros-pro
+```
+
+**Security note:** The `Dockerfile` does **not** copy `.env` files into the image. Mount secrets at runtime via `env_file` in `docker-compose.yml` or `-e` flags. `.env` is git‑ignored.
+
+---
+
+## Configuration
+
+All configuration is environment‑driven via `backend/config.py` (pydantic_settings). Key groups:
+
+| Group | Highlights |
+|-------|-----------|
+| Application | `APP_ENV` (development \| production) |
+| Database | `MYSQL_*` components or explicit `DATABASE_URL` (MySQL only) |
+| Job APIs | `JOB_API_MODE` (mock \| live), `JOB_SOURCES`, JSearch/Adzuna keys |
+| AI/LLM | `LLM_PROVIDER_MODE`, per‑provider keys & models |
+| Vector | `QDRANT_URL` |
+| Verification | `FIRECRAWL_API_KEY` |
+| Security | `API_KEY`, `RATE_LIMIT_PER_MINUTE` |
+
+See [`.env.example`](.env.example) for the full template with inline docs.
+
+### Company Scraper Settings
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `company_scraper_max_concurrency` | `5` | Maximum number of concurrent requests **per domain**. |
-| `company_scraper_jitter_max` | `0.5` | Maximum seconds of random jitter added to each retry delay. |
-| `company_scraper_cache_size` | `100` | Maximum number of cached HTML responses. |
-| `company_career_page_patterns` | `[]` | Custom URL patterns for career pages (override or extend). |
+| `company_scraper_max_concurrency` | `5` | Max concurrent requests **per domain**. |
+| `company_scraper_jitter_max` | `0.5` | Max seconds of random jitter on retry backoff. |
+| `company_scraper_cache_size` | `100` | Max cached HTML responses (in memory). |
+| `company_career_page_patterns` | `[]` | Custom URL patterns for career pages. |
 
-You can override any of these values via environment variables, a `.env` file, or directly in code.
+Enable via `JOB_SOURCES=company`.
 
 ---
 
 ## CLI Usage
 
-The scraper ships with a ready‑to‑use command‑line interface:
-
 ```bash
 python -m backend.cli <company_name> [options]
 ```
 
-### Options
-
 | Flag | Type | Description |
 |------|------|-------------|
-| `--location <text>` | string | Optional location filter (e.g., "Remote", "United States"). |
-| `--url <text>` | string | Custom career‑page URL (bypasses auto‑URL construction). |
-| `--salary-min <float>` | float | Minimum monthly salary (numeric) to filter jobs. |
-| `--salary-max <float>` | float | Maximum monthly salary (numeric) to filter jobs. |
-| `--max-concurrency <int>` | int | Override the per‑domain concurrency limit. |
-| `--jitter-max <float>` | float | Override the maximum jitter added to retry delays. |
-| `-h, --help` | | Show the help message. |
+| `--location <text>` | string | Location filter (e.g., "Remote"). |
+| `--url <text>` | string | Custom career‑page URL (bypasses auto‑construction). |
+| `--salary-min <float>` | float | Minimum salary filter. |
+| `--salary-max <float>` | float | Maximum salary filter. |
+| `--max-concurrency <int>` | int | Override per‑domain concurrency. |
+| `--jitter-max <float>` | float | Override max retry jitter. |
 
-### Example Calls
-
+Example:
 ```bash
-# Basic fetch – uses all defaults
-python -m backend.cli Google
-
-# Increase concurrency and jitter for faster (but still polite) scraping
 python -m backend.cli Google --max-concurrency 10 --jitter-max 1.0
-
-# Fetch a specific URL and apply a location filter
-python -m backend.cli "Acme Corp" --location "Remote" --url https://acme.com/careers
-```
-
-The tool prints a neatly formatted JSON array of job postings:
-
-```json
-[
-  {
-    "source": "company_scraper",
-    "source_id": "1a2b3c4d5e6f7g8h",
-    "title": "Senior Software Engineer",
-    "company": "Acme Corp",
-    "location_raw": "Remote",
-    "location_normalized": "Remote",
-    "employment_type_raw": "full_time",
-    "description": "Lead large‑scale distributed systems…",
-    "apply_url": "https://acme.com/careers/apply/123",
-    "posted_at_raw": null,
-    "salary_raw": null
-  }
-]
 ```
 
 ---
 
-## Advanced Usage
+## Testing
 
-### Adding New Career‑Page Patterns
-Edit `backend/config.py` and extend the `company_career_page_patterns` list:
-
-```python
-company_career_page_patterns: List[str] = [
-    "/careers",
-    "/careers?",
-    "/jobs",
-    "/{dept}/jobs",   # Example of a placeholder you can fill programmatically
-]
-```
-
-The scraper will automatically include these patterns when constructing URLs.
-
-### Persisting Cache to Disk (Optional)
-The current implementation caches HTML in memory only. For long‑running processes that benefit from cache persistence across restarts, you can:
-
-1. Extend `CompanyScraper._fetch_html` to write cached HTML to a configurable directory (`company_scraper_disk_cache_path`).  
-2. Load previously saved files on startup.  
-
-This change is straightforward and does not affect the public API.
-
-### Running the Test Suite
 ```bash
-pytest backend/tests/test_company_scraper_concurrency.py -v
+# All tests (52+ covering discovery, normalize, dedup, filters, vector, LLM, e2e)
+pytest -v
+
+# Single file
+pytest tests/test_company_scraper.py -v
 ```
 
-All tests are designed to run without making real HTTP requests, ensuring a safe CI environment.
+Tests use `respx` for HTTP mocking — no real network calls.
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request.  
-When adding new features, please:
-
-1. Follow the existing code style and type‑hint conventions.  
-2. Include unit tests for any new functionality.  
-3. Update the roadmap (`backend/UPGRADE_ROADMAP.md`) with any new user‑facing changes.  
+1. Follow existing code style and type‑hint conventions.
+2. Include unit tests for new functionality.
+3. Update `UPGRADE_ROADMAP.md` for user‑facing changes.
+4. Never hard‑code secrets — use `.env` (git‑ignored).
 
 ---
 
 ## License
 
-MIT License – see the `LICENSE` file for details.
-
----
-
-**Enjoy building smarter job pipelines!** 🚀
+MIT — see [LICENSE](LICENSE).

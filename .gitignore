@@ -9,6 +9,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Docker
+.docker/
+
 # Python / General
 __pycache__/
 *.py[cod]

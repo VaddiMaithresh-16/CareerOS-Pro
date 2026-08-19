@@ -18,8 +18,8 @@ from bs4 import BeautifulSoup
 from backend.services.company_scraper import (
     CompanyScraper,
     hash_url,
-    hash_content,
 )
+from backend.services.normalize import hash_content
 
 
 @pytest.mark.parametrize(
@@ -101,5 +101,5 @@ def test_sample_hashing_consistency():
 async def test_async_instance_creation():
     scraper = CompanyScraper()
     assert isinstance(scraper, CompanyScraper)
-    # Ensure that the semaphore is created with a sensible default
-    assert scraper._semaphore is not None
+    # Ensure that the per-domain semaphore value is set with a sensible default
+    assert scraper._semaphore_value is not None

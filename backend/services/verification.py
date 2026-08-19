@@ -8,7 +8,7 @@ verified stays False, not True (spec 2.3: unknown/false, never guessed).
 """
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from backend.config import get_settings
 
 settings = get_settings()
@@ -55,11 +55,20 @@ class FirecrawlData(BaseModel):
 
 
 async def _http_head_check(url: str) -> bool:
+    """Check URL reachability via HEAD, with graceful 403 handling.
+
+    On 403 (forbidden), falls back to GET with a proper User-Agent header
+    before giving up, since some ATS platforms block HEAD but allow GET.
+    """
+    client = get_http_client()
     try:
-        client = get_http_client()
         resp = await client.head(url)
         if resp.status_code == 405:  # some ATS boards reject HEAD, fall back to GET
             resp = await client.get(url)
+            return resp.status_code < 400
+        if resp.status_code == 403:  # forbidden — try GET with User-Agent
+            resp = await client.get(url, headers={"User-Agent": "CareerOS/0.1"})
+            return resp.status_code < 400
         return resp.status_code < 400
     except httpx.HTTPError:
         return False
@@ -75,7 +84,7 @@ async def _firecrawl_scrape(url: str) -> FirecrawlResponse | None:
         resp = await client.post(FIRECRAWL_SCRAPE_URL, headers=headers, json=payload)
         resp.raise_for_status()
         return FirecrawlResponse.model_validate(resp.json())
-    except httpx.HTTPError:
+    except (httpx.HTTPError, ValidationError):
         return None
 
 
@@ -104,7 +113,10 @@ async def verify_job_posting(apply_url: str, expected_title: str, expected_compa
     if not fc_resp or not fc_resp.success or not fc_resp.data:
         return VerificationResult(verified=False, reason="firecrawl returned no usable content")
 
-    fc_data = FirecrawlData.model_validate(fc_resp.data)
+    try:
+        fc_data = FirecrawlData.model_validate(fc_resp.data)
+    except ValidationError:
+        return VerificationResult(verified=False, reason="firecrawl response could not be parsed")
     markdown = fc_data.markdown or ""
     page_title = (fc_data.metadata or {}).get("title")
 

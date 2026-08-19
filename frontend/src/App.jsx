@@ -47,7 +47,7 @@ export default function App() {
         top_k: 30,
         llm_provider: llmProvider !== 'auto' ? llmProvider : undefined,
       });
-      setResults(data.results || []);
+      setResults(Array.isArray(data) ? data : (data.results || []));
     } catch (e) {
       setError(e.message);
       setResults([]);
